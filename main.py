@@ -1,11 +1,20 @@
 import json
 import sqlite3
+from sqlite3.dbapi2 import Cursor
 
 import jsonschema
 from jsonschema.exceptions import ValidationError
 
 
-def read_json(json_file):
+def read_json(json_file: str) -> object:
+    """Deserialize JSON-document from JSON-file to a Python object.
+
+    Args:
+        json_file: A path to json-file containing JSON document.
+
+    Returns:
+        A Python object. For example, it could be dictionary or list.
+    """
     with open(json_file, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -29,17 +38,15 @@ def is_json_valid(instance, schema) -> bool:
         return True
 
 
-def create_tables_in_db_if_not_exists(cursor):
-    cursor.execute("""
+def create_tables_in_db_if_not_exists(cursor: Cursor) -> None:
+    """Create goods and shops_goods tables in database using Cursor object."""
+    cursor.executescript("""
                     CREATE TABLE IF NOT EXISTS goods (
                         id INTEGER NOT NULL PRIMARY KEY,
                         name VARCHAR(50) NOT NULL,
                         package_height FLOAT NOT NULL,
                         package_width FLOAT NOT NULL
                     );
-                    """
-    )
-    cursor.execute("""
                     CREATE TABLE IF NOT EXISTS shops_goods (
                         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                         id_good INTEGER NOT NULL,
@@ -51,19 +58,8 @@ def create_tables_in_db_if_not_exists(cursor):
     )
 
 
-def get_all_data_from_table(cursor, table_name):
-    cursor.execute(f"SELECT * FROM {table_name};")
-    all_data = cursor.fetchall()
-    return all_data
-
-
-def get_all_id_from_goods_table(cursor):
-    cursor.execute(f"SELECT id FROM goods;")
-    all_data = cursor.fetchall()
-    return all_data
-
-
-def prepare_data_for_insert_update(data):
+def prepare_data_for_insert_update(data: dict) -> dict:
+    """Prepare incoming data for inserting(updating) in database tables."""
     prepared_data = {
         "id": data["id"],
         "name": data["name"],
@@ -74,32 +70,48 @@ def prepare_data_for_insert_update(data):
     return prepared_data
 
 
-def insert_or_replace_data_to_goods_table(cursor, data):
+def insert_or_replace_data_to_goods_table(cursor: Cursor,
+                                          prepared_data: dict) -> None:
+    """Insert goods data or update it if goods already exists in goods table.
+
+    Args:
+        cursor: Database Cursor object.
+        prepared_data: Incoming data after preparation.
+    """
     cursor.execute("""INSERT OR REPLACE INTO goods
-                   VALUES (:id, :name, :height, :width)""", data)
+                   VALUES (:id, :name, :height, :width)""", prepared_data)
 
 
-def insert_or_replace_data_to_shops_goods_table(cursor, data):
-    cursor.execute("""INSERT OR REPLACE INTO shops_goods
-                   VALUES (
-                       (SELECT id FROM shops_goods
-                       WHERE shops_goods.id_good = :id and shops_goods.location = :location),
-                       :id, :location, :amount)
-                   """, data)
+def insert_or_replace_data_to_shops_goods_table(cursor: Cursor,
+                                                prepared_data: dict) -> None:
+    """Insert goods data or update it if goods already exists
+    in shops_goods table.
+
+    Args:
+        cursor: Database Cursor object.
+        prepared_data: Incoming data after preparation.
+    """
+    for shop in prepared_data["location_and_quantity"]:
+        cursor.execute("""INSERT OR REPLACE INTO shops_goods
+                       VALUES (
+                           (SELECT id FROM shops_goods
+                           WHERE shops_goods.id_good = :id_good and 
+                           shops_goods.location = :location),
+                           :id_good, :location, :amount)
+                       """,
+                       {"id_good": prepared_data["id"],
+                        "location": shop["location"],
+                        "amount": shop["amount"]
+                       })
 
 
 if __name__ == "__main__":
     instance = read_json("data.json")
     schema = read_json("goods.schema.json")
     if is_json_valid(instance, schema):
+        prepared_data = prepare_data_for_insert_update(instance)
         with sqlite3.connect("goods.db") as con:
             cur = con.cursor()
             create_tables_in_db_if_not_exists(cur)
-            prepared_data = prepare_data_for_insert_update(instance)
             insert_or_replace_data_to_goods_table(cur, prepared_data)
-            for shop in prepared_data["location_and_quantity"]:
-                insert_or_replace_data_to_shops_goods_table(cur,
-                    {"id": prepared_data["id"],
-                     "location": shop["location"],
-                     "amount": shop["amount"]
-                     })
+            insert_or_replace_data_to_shops_goods_table(cur, prepared_data)
