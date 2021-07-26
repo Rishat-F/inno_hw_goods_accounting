@@ -19,7 +19,7 @@ def read_json(json_file: str) -> object:
         return json.load(f)
 
 
-def is_json_valid(instance, schema) -> bool:
+def is_data_valid(instance, schema) -> bool:
     """Validate an instance under the given schema.
 
     Args:
@@ -32,13 +32,14 @@ def is_json_valid(instance, schema) -> bool:
     try:
         jsonschema.validate(instance, schema)
     except ValidationError as err:
-        print("Данные не прошли валидацию", err)
+        print("---------------------------")
+        print("Данные не прошли валидацию:\n", err, "\n")
         return False
     else:
         return True
 
 
-def create_tables_in_db_if_not_exists(cursor: Cursor) -> None:
+def create_tables_in_db(cursor: Cursor) -> None:
     """Create goods and shops_goods tables in database using Cursor object."""
     cursor.executescript("""
                     CREATE TABLE IF NOT EXISTS goods (
@@ -108,10 +109,10 @@ def insert_or_replace_data_to_shops_goods_table(cursor: Cursor,
 if __name__ == "__main__":
     instance = read_json("data.json")
     schema = read_json("goods.schema.json")
-    if is_json_valid(instance, schema):
+    if is_data_valid(instance, schema):
         prepared_data = prepare_data_for_insert_update(instance)
-        with sqlite3.connect("goods.db") as con:
-            cur = con.cursor()
-            create_tables_in_db_if_not_exists(cur)
+        with sqlite3.connect("goods.db") as conn:
+            cur = conn.cursor()
+            create_tables_in_db(cur)
             insert_or_replace_data_to_goods_table(cur, prepared_data)
             insert_or_replace_data_to_shops_goods_table(cur, prepared_data)
