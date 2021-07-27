@@ -6,7 +6,7 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 
 
-def read_json(json_file: str) -> object:
+def read_json(json_file: str) -> dict:
     """Deserialize JSON-document from JSON-file to a Python object.
 
     Args:
@@ -19,7 +19,7 @@ def read_json(json_file: str) -> object:
         return json.load(f)
 
 
-def is_data_valid(instance, schema) -> bool:
+def is_data_valid(instance: dict, schema: dict) -> bool:
     """Validate an instance under the given schema.
 
     Args:
@@ -41,7 +41,8 @@ def is_data_valid(instance, schema) -> bool:
 
 def create_tables_in_db(cursor: Cursor) -> None:
     """Create goods and shops_goods tables in database using Cursor object."""
-    cursor.executescript("""
+    cursor.executescript(
+        """
                     CREATE TABLE IF NOT EXISTS goods (
                         id INTEGER NOT NULL PRIMARY KEY,
                         name VARCHAR(50) NOT NULL,
@@ -66,44 +67,43 @@ def prepare_data_for_insert_update(data: dict) -> dict:
         "name": data["name"],
         "height": data["package_params"]["height"],
         "width": data["package_params"]["width"],
-        "location_and_quantity": data["location_and_quantity"]
-        }
+        "location_and_quantity": data["location_and_quantity"],
+    }
     return prepared_data
 
 
-def insert_or_replace_data_to_goods_table(cursor: Cursor,
-                                          prepared_data: dict) -> None:
+def insert_or_replace_data_to_goods_table(cursor: Cursor, prepared_data: dict) -> None:
     """Insert goods data or update it if goods already exists in goods table.
 
     Args:
         cursor: Database Cursor object.
         prepared_data: Incoming data after preparation.
     """
-    cursor.execute("""INSERT OR REPLACE INTO goods
-                   VALUES (:id, :name, :height, :width)""", prepared_data)
+    cursor.execute(
+        """INSERT OR REPLACE INTO goods
+                   VALUES (:id, :name, :height, :width)""",
+        prepared_data,
+    )
 
 
-def insert_or_replace_data_to_shops_goods_table(cursor: Cursor,
-                                                prepared_data: dict) -> None:
-    """Insert goods data or update it if goods already exists
-    in shops_goods table.
+def insert_or_replace_data_to_shops_goods_table(cursor: Cursor, prepared_data: dict) -> None:
+    """Insert goods data or update it if goods already exists in shops_goods table.
 
     Args:
         cursor: Database Cursor object.
         prepared_data: Incoming data after preparation.
     """
     for shop in prepared_data["location_and_quantity"]:
-        cursor.execute("""INSERT OR REPLACE INTO shops_goods
+        cursor.execute(
+            """INSERT OR REPLACE INTO shops_goods
                        VALUES (
                            (SELECT id FROM shops_goods
-                           WHERE shops_goods.id_good = :id_good and 
+                           WHERE shops_goods.id_good = :id_good and
                            shops_goods.location = :location),
                            :id_good, :location, :amount)
                        """,
-                       {"id_good": prepared_data["id"],
-                        "location": shop["location"],
-                        "amount": shop["amount"]
-                       })
+            {"id_good": prepared_data["id"], "location": shop["location"], "amount": shop["amount"]},
+        )
 
 
 if __name__ == "__main__":

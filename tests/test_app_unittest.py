@@ -1,3 +1,4 @@
+import json
 import unittest
 import sys
 import os
@@ -10,7 +11,59 @@ from constant_test_cases import VALID_TEST_CASES, INVALID_TEST_CASES,\
 import main
 
 
-TEST_DATABASE_NAME = "test.db"
+TEST_DATABASE_FILE_NAME = "test.db"
+TEST_DATA_FILE_NAME = "test_data.json"
+TABLES_NAMES = ("goods", "shops_goods")
+TABLES_IN_DB_QUERY = "SELECT name FROM sqlite_master WHERE type = 'table'"
+DATA = {
+    "id": 3,
+    "name": "Холодильник",
+    "package_params": {
+        "width": 120,
+        "height": 270
+        },
+    "location_and_quantity": [
+        {
+            "location": "Магазин на Ленина",
+            "amount": 0
+        },
+        {
+            "location": "Магазин в центре",
+            "amount": 9
+        }
+    ]
+}
+
+
+class TestReadDataFromJsonAndPrepareItForInsertUpdateInDb(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        with open(TEST_DATA_FILE_NAME, 'w', encoding='utf-8') as cls.file:
+            json.dump(DATA, cls.file)
+
+    @classmethod
+    def tearDownClass(cls):
+        os.remove(TEST_DATA_FILE_NAME)
+
+    def test_reading_data_from_json(self):
+        self.assertEqual(main.read_json(TEST_DATA_FILE_NAME), DATA,
+                         "read_json function from main.py works incorrect!")
+
+    def test_prepared_data_is_dict(self):
+        data_from_json = main.read_json(TEST_DATA_FILE_NAME)
+        prepared_data = main.prepare_data_for_insert_update(data_from_json)
+        self.assertIsInstance(prepared_data, dict,
+                              "prepare_data_for_insert_update function "
+                              "should return dictionary!")
+
+    def test_prepared_data_has_needed_keys(self):
+        data_from_json = main.read_json(TEST_DATA_FILE_NAME)
+        prepared_data = main.prepare_data_for_insert_update(data_from_json)
+        prepared_data_keys = set(prepared_data.keys())
+        self.assertSetEqual(prepared_data_keys,
+                            {"id", "name", "height", "width", "location_and_quantity"},
+                            "There is not all needed keys in prepared data")
 
 
 class TestValidationIncomingData(unittest.TestCase):
@@ -31,21 +84,42 @@ class TestValidationIncomingData(unittest.TestCase):
                             "Invalid data pass a validation!")
 
 
+class TestCreatingTablesInDatabase(unittest.TestCase):
+    conn = None
+
+    @classmethod
+    def setUpClass(cls):
+        with sqlite3.connect(TEST_DATABASE_FILE_NAME) as cls.conn:
+            cls.cur = cls.conn.cursor()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.conn.close()
+        os.remove(TEST_DATABASE_FILE_NAME)
+
+    def test_creation_goods_and_shops_goods_tables_in_database(self):
+        main.create_tables_in_db(self.cur)
+        self.cur.execute(TABLES_IN_DB_QUERY)
+        tables_in_db = set(item[0] for item in self.cur.fetchall())
+        for table_name in (TABLES_NAMES):
+            self.assertIn(table_name, tables_in_db,
+                          f"create_tables_in_db from main.py doesn't create "
+                          f"'{table_name}' table in database!")
+
+
 class TestInsertingUpdatingDataInDatabase(unittest.TestCase):
     conn = None
 
     @classmethod
     def setUpClass(cls):
-        with sqlite3.connect(TEST_DATABASE_NAME) as cls.conn:
-            print("Open Database connection")
+        with sqlite3.connect(TEST_DATABASE_FILE_NAME) as cls.conn:
             cls.cur = cls.conn.cursor()
             main.create_tables_in_db(cls.cur)
 
     @classmethod
     def tearDownClass(cls):
         cls.conn.close()
-        print("Close Database connection")
-        os.remove(TEST_DATABASE_NAME)
+        os.remove(TEST_DATABASE_FILE_NAME)
 
     def test_inserting_in_goods_table_works_correct(self):
         data = {
@@ -57,7 +131,6 @@ class TestInsertingUpdatingDataInDatabase(unittest.TestCase):
         main.insert_or_replace_data_to_goods_table(self.cur, data)
         self.cur.execute("SELECT * FROM goods")
         all_data = self.cur.fetchall()
-        print("Test 1")
         self.assertIn((data["id"], data["name"], data["height"], data["width"]),
                       all_data, f"{data} haven't inserted in goods table in Database!")
 
@@ -78,7 +151,6 @@ class TestInsertingUpdatingDataInDatabase(unittest.TestCase):
         main.insert_or_replace_data_to_goods_table(self.cur, updated_data)
         self.cur.execute("SELECT * FROM goods")
         all_data = self.cur.fetchall()
-        print("Test 2")
         self.assertNotIn((data["id"], data["name"], data["height"], data["width"]),
                          all_data, f"Outdated data {data} is present after updating in goods table in Database!")
         self.assertIn((updated_data["id"], updated_data["name"], updated_data["height"], updated_data["width"]),
@@ -102,7 +174,6 @@ class TestInsertingUpdatingDataInDatabase(unittest.TestCase):
         main.insert_or_replace_data_to_shops_goods_table(self.cur, data)
         self.cur.execute("SELECT id_good, location, amount FROM shops_goods")
         all_data = self.cur.fetchall()
-        print("Test 3")
         for shop in data["location_and_quantity"]:
             self.assertIn((data["id"], shop["location"], shop["amount"]),
                           all_data, f"{data} haven't inserted in shops_goods table in Database!")
@@ -138,7 +209,6 @@ class TestInsertingUpdatingDataInDatabase(unittest.TestCase):
         main.insert_or_replace_data_to_shops_goods_table(self.cur, updated_data)
         self.cur.execute("SELECT id_good, location, amount FROM shops_goods")
         all_data = self.cur.fetchall()
-        print("Test 4")
         for shop in updated_data["location_and_quantity"]:
             self.assertIn((updated_data["id"], shop["location"], shop["amount"]),
                           all_data, f"{updated_data} haven't inserted in shops_goods table in Database!")
