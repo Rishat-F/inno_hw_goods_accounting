@@ -92,10 +92,6 @@ class TestCreatingTablesInDatabase(unittest.TestCase):
         with sqlite3.connect(":memory:") as cls.conn:
             cls.cur = cls.conn.cursor()
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.conn.close()
-
     def test_creation_goods_and_shops_goods_tables_in_database(self):
         main.create_tables_in_db(self.cur)
         self.cur.execute(TABLES_IN_DB_QUERY)
