@@ -68,19 +68,14 @@ class TestReadDataFromJsonAndPrepareItForInsertUpdateInDb(unittest.TestCase):
 
 class TestValidationIncomingData(unittest.TestCase):
 
-    def setUp(self):
-        self.validation_schema = VALIDATION_SCHEMA
-        self.valid_cases = VALID_TEST_CASES
-        self.invalid_cases = INVALID_TEST_CASES
-
     def test_valid_data(self):
-        for valid_case in self.valid_cases:
-            self.assertTrue(main.is_data_valid(valid_case, self.validation_schema),
+        for valid_case in VALID_TEST_CASES:
+            self.assertTrue(main.is_data_valid(valid_case, VALIDATION_SCHEMA),
                             "Valid data don't pass a validation!")
 
     def test_invalid_data(self):
-        for valid_case in self.invalid_cases:
-            self.assertFalse(main.is_data_valid(valid_case, self.validation_schema),
+        for invalid_case in INVALID_TEST_CASES:
+            self.assertFalse(main.is_data_valid(invalid_case, VALIDATION_SCHEMA),
                             "Invalid data pass a validation!")
 
 
