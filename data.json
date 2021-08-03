@@ -1,0 +1,18 @@
+{
+    "id": 3,
+    "name": "Холодильник",
+    "package_params": {
+        "width": 120,
+        "height": 270
+    },
+    "location_and_quantity": [
+        {
+            "location": "Магазин на Ленина",
+            "amount": 0
+        },
+        {
+            "location": "Магазин в центре",
+            "amount": 9
+        }
+    ]
+}
